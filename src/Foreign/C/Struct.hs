@@ -8,7 +8,7 @@ module Foreign.C.Struct (
 	struct, StrName, StrSize,
 	MemName, MemType, MemPeek, MemPoke, DerivClass,
 	-- * STRUCT WITH PRIMITIVE MONAD
-	structPrim) where
+	structPrim, FunCopy, FunFree ) where
 
 import Language.Haskell.TH (
 	DecsQ, DecQ, Dec(PragmaD), Pragma(CompleteP), sigD, valD, funD, tySynD,

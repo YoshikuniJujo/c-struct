@@ -185,7 +185,7 @@ mkInstanceShow (mkName &&& id -> (sn, ssn)) ms = do
 mkShowMems :: StrName -> [MemName] -> [Name] -> ExpQ
 mkShowMems (toLabel -> l) ms vs = foldr (...) (varE 'id) . intersperse (ss ", ")
 	$ (<$> zip ms vs) \(m, v) ->
-		l m ..+ " = " ... varE 'showsPrec `appE` intE 11 `appE` varE v
+		l m ..+ " = " ... varE 'showsPrec `appE` intE 0 `appE` varE v
 
 -- Read
 

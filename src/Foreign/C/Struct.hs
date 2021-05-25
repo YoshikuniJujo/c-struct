@@ -83,9 +83,9 @@ struct sn sz (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = (++)
 -- Example
 --
 -- @
--- struct "Foo" ${size Foo}
---	[	("x", ''CInt, [| #{peek Foo, x} |], [| #{poke Foo, x} |]),
---		("y", ''CInt, [| #{peek Foo, y} |], [| #{poke Foo, y} |]) ]
+-- struct \"Foo\" ${size Foo}
+--	[	(\"x\", ''CInt, [| \#{peek Foo, x} |], [| \#{poke Foo, x} |]),
+--		(\"y\", ''CInt, [| \#{peek Foo, y} |], [| \#{poke Foo, y} |]) ]
 --	[''Show, ''Read, ''Eq, ''Ord, ''Bounded]
 -- @
 

@@ -79,6 +79,16 @@ struct sn sz (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = (++)
 	where dcs = case toDerivCollection dcs_ of
 		(d, []) -> d; (_, os) -> error $ "Can't derive: " ++ show os
 
+-- ^
+-- Example
+--
+-- @
+-- struct "Foo" ${size Foo}
+--	[	("x", ''CInt, [| #{peek Foo, x} |], [| #{poke Foo, x} |]),
+--		("y", ''CInt, [| #{peek Foo, y} |], [| #{poke Foo, y} |]) ]
+--	[''Show, ''Read, ''Eq, ''Ord, ''Bounded]
+-- @
+
 type StrName = String; type StrSize = Integer
 type MemName = String; type MemType = Name
 type MemPeek = ExpQ; type MemPoke = ExpQ
@@ -306,6 +316,16 @@ structPrim nt cp fr ds = sequence [
 	mkNewtypePrim nt ds, mkTypeST nt, mkTypeIO nt,
 	mkFreezeSig nt, mkFreezeFun nt cp fr, mkThawSig nt, mkThawFun nt cp fr,
 	mkCopySig nt, mkCopyFun nt cp fr ]
+
+-- ^
+-- Example
+--
+-- @
+-- foreign import ccall "foo_copy" c_foo_copy :: Ptr Foo -> IO (Ptr Foo)
+-- foreign import ccall "foo_free" c_foo_free :: Ptr Foo -> IO ()
+--
+-- structPrim "Foo" 'c_foo_copy 'c_foo_free [''Show]
+-- @
 
 type FunCopy = Name; type FunFree = Name
 

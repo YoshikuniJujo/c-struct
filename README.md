@@ -46,3 +46,32 @@ foo_scale(Foo *f, int s)
 	f -> y = f -> y * s;
 }
 ```
+
+Foo.hsc
+
+```
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE PatternSynonyms, ViewPatterns #-}
+{-# OPTIONS_GHC -Wall -fno-warn-tabs #-}
+
+module Foo where
+
+import Foreign.Ptr (Ptr)
+import Foreign.ForeignPtr (withForeignPtr)
+import Foreign.Storable (peekByteOff, pokeByteOff)
+import Foreign.C.Types (CInt(..))
+import Foreign.C.Struct (struct)
+
+#include "foo.h"
+
+struct "Foo" #{size Foo}
+	[	("x", ''CInt, [| #{peek Foo, x} |], [| #{poke Foo, x} |]),
+		("y", ''CInt, [| #{peek Foo, y} |], [| #{poke Foo, y} |]) ]
+	[''Show, ''Read, ''Eq, ''Ord, ''Bounded]
+
+fooPrint :: Foo -> IO ()
+fooPrint (Foo_ f) = withForeignPtr f c_foo_print
+
+foreign import ccall "foo_print" c_foo_print :: Ptr Foo -> IO ()
+```

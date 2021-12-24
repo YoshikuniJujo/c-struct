@@ -16,13 +16,14 @@ import Language.Haskell.TH (
 		bangType, bang, noSourceUnpackedness, noSourceStrictness,
 	instanceD, cxt,
 	patSynSigD, patSynD, recordPatSyn, explBidir,
-	ExpQ, varE, conE, appE, lamE, tupE, listE,
+	ExpQ, varE, conE, appE, infixE, lamE, tupE, listE, litE, integerL,
 	forallT, varT, conT, appT, varP, wildP, conP, tupP, viewP,
 	Name, mkName, newName,
 	ClauseQ, clause, normalB, StmtQ, doE, compE, bindS, noBindS )
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
 import Foreign.Concurrent (newForeignPtr)
-import Foreign.Marshal (mallocBytes, free)
+import Foreign.Marshal (malloc, mallocBytes, free, copyBytes)
+import Foreign.Storable
 import Control.Arrow ((&&&))
 import Control.Monad (replicateM)
 import Control.Monad.Primitive (PrimMonad(..), RealWorld, unsafeIOToPrim)
@@ -67,15 +68,15 @@ import Foreign.C.Struct.Parts (
 
 -- FUNCTION STRUCT
 
-struct :: StrName -> StrSize ->
+struct :: StrName -> StrSize -> StrAlgn ->
 	[(MemName, MemType, MemPeek, MemPoke)] -> [DerivClass] -> DecsQ
-struct sn sz (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = (++)
+struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = (++)
 	<$> sequence [
 		mkNewtype sn,
 		pure . PragmaD $ CompleteP [mkName sn] Nothing,
 		mkPatternSig sn mts, mkPatternBody sn sz mns mpos,
 		mkPatternFunSig sn mts, mkPatternFunBody sn mpes ]
-	<*> mkInstances sn mns dcs
+	<*> mkInstances sn sz algn mns dcs
 	where dcs = case toDerivCollection dcs_ of
 		(d, []) -> d; (_, os) -> error $ "Can't derive: " ++ show os
 
@@ -89,7 +90,7 @@ struct sn sz (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = (++)
 --	[''Show, ''Read, ''Eq, ''Ord, ''Bounded]
 -- @
 
-type StrName = String; type StrSize = Integer
+type StrName = String; type StrSize = Integer; type StrAlgn = Integer
 type MemName = String; type MemType = Name
 type MemPeek = ExpQ; type MemPoke = ExpQ
 type DerivClass = Name
@@ -148,38 +149,44 @@ mkPatternFunPeeks (varE -> p) (length &&& id -> (n, pes)) =
 
 -- Function Mk Deriving
 
-mkInstances :: StrName -> [MemName] -> DerivCollection -> DecsQ
-mkInstances sn ms dc =
+mkInstances :: StrName -> StrSize -> StrAlgn -> [MemName] -> DerivCollection -> DecsQ
+mkInstances sn sz algn ms dc =
 	sequence $ (\(t, b) -> bool Nothing (Just t) b) `mapMaybe` zip [
 		mkInstanceShow sn ms, mkInstanceRead sn ms, mkInstanceEq sn ms,
-		mkInstanceOrd sn ms, mkInstanceBounded sn ms, mkInstanceIx sn ms
+		mkInstanceOrd sn ms, mkInstanceBounded sn ms, mkInstanceIx sn ms,
+		deriveStorable sn sz algn
 		] [	derivingShow dc, derivingRead dc, derivingEq dc,
-			derivingOrd dc, derivingBounded dc, derivingIx dc ]
+			derivingOrd dc, derivingBounded dc, derivingIx dc,
+			derivingStorable dc ]
 
 data DerivCollection = DerivCollection {
 	derivingShow :: Bool, derivingRead :: Bool,
 	derivingEq :: Bool, derivingOrd :: Bool,
-	derivingBounded :: Bool, derivingIx :: Bool } deriving Show
+	derivingBounded :: Bool, derivingIx :: Bool,
+	derivingStorable :: Bool } deriving Show
 
 toDerivCollection :: [DerivClass] -> (DerivCollection, [DerivClass])
-toDerivCollection [] = (DerivCollection False False False False False False, [])
+toDerivCollection [] = (DerivCollection False False False False False False False, [])
 toDerivCollection (d : ds) = case d of
 	NameShow -> (dc { derivingShow = True }, ds')
 	NameRead -> (dc { derivingRead = True }, ds')
 	NameEq -> (dc { derivingEq = True }, ds')
 	NameOrd -> (dc { derivingOrd = True }, ds')
 	NameBounded -> (dc { derivingBounded = True }, ds')
-	NameIx -> (dc {derivingIx = True }, ds')
+	NameIx -> (dc { derivingIx = True }, ds')
+	NameStorable -> (dc { derivingStorable = True }, ds')
 	_ -> (dc, d : ds')
 	where (dc, ds') = toDerivCollection ds
 
-pattern NameShow, NameRead, NameEq, NameOrd, NameBounded, NameIx :: Name
+pattern NameShow, NameRead, NameEq, NameOrd, NameBounded, NameIx,
+	NameStorable :: Name
 pattern NameShow <- ((== ''Show) -> True)
 pattern NameRead <- ((== ''Read) -> True)
 pattern NameEq <- ((== ''Eq) -> True)
 pattern NameOrd <- ((== ''Ord) -> True)
 pattern NameBounded <- ((== ''Bounded) -> True)
 pattern NameIx <- ((== ''Ix) -> True)
+pattern NameStorable <- ((== ''Storable) -> True)
 
 -- Show
 
@@ -410,3 +417,31 @@ mkCopyBody sn cp fr fp =
 	varE 'unsafeIOToPrim ... conE (mkName $ sn ++ "Prim") `pt` varE '(<$>)
 		.$ varE 'withForeignPtr `appE` varE fp `appE` varE cp
 			.>>= varE 'newForeignPtr .<$> varE 'id .<*> varE fr
+
+-- DERIVE STORABLE
+
+deriveStorable :: String -> Integer -> Integer -> DecQ
+deriveStorable n sz algn = do
+	[ps, pd, pd', fps', ps'] <-
+		newName `mapM` ["ps", "pd", "pd", "fps", "ps"]
+	instanceD (cxt []) (appT (conT ''Storable) (conT tp)) [
+		funD 'sizeOf [clause [wildP] (normalB . litE $ integerL sz) []],
+		funD 'alignment
+			[clause [wildP] (normalB . litE $ integerL algn) []],
+		funD 'peek [clause [varP ps] (normalB $ doE [
+			bindS (varP pd) $ varE 'malloc,
+			noBindS $ varE 'copyBytes `appE` varE pd `appE`
+				varE ps `appE` litE (integerL sz),
+			noBindS . infixE (Just $ conE dc) (varE '(<$>))
+				. Just $ varE 'newForeignPtr
+					`appE` varE pd
+					`appE` (varE 'free `appE` varE pd)
+			]) [] ],
+		funD 'poke [clause [varP pd', conP dc [varP fps']] (normalB
+			$ varE 'withForeignPtr
+				`appE` varE fps' `appE` (lamE [varP ps']
+					$ varE 'copyBytes `appE` varE pd'
+						`appE` varE ps'
+						`appE` litE (integerL sz))) []]
+		]
+	where tp = mkName n; dc = mkName $ n ++ "_"

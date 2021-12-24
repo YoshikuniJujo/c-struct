@@ -71,10 +71,10 @@ import Foreign.C.Struct (struct)
 
 #include "foo.h"
 
-struct "Foo" #{size Foo}
+struct "Foo" #{size Foo} #{alignment Foo}
 	[	("x", ''CInt, [| #{peek Foo, x} |], [| #{poke Foo, x} |]),
 		("y", ''CInt, [| #{peek Foo, y} |], [| #{poke Foo, y} |]) ]
-	[''Show, ''Read, ''Eq, ''Ord, ''Bounded]
+	[''Show, ''Read, ''Eq, ''Ord, ''Bounded, ''Storable]
 
 fooPrint :: Foo -> IO ()
 fooPrint (Foo_ f) = withForeignPtr f c_foo_print
@@ -124,7 +124,7 @@ import Data.Array (Ix(..))
 newtype CIntIx = CIntIx CInt
 	deriving (Show, Eq, Ord, Enum, Num, Real, Integral, Storable)
 
-struct "FooIx" #{size Foo}
+struct "FooIx" #{size Foo} #{alignment Foo}
 	[	("x", ''CIntIx, [| #{peek Foo, x} |], [| #{poke Foo, x} |]),
 		("y", ''CIntIx, [| #{peek Foo, y} |], [| #{poke Foo, y} |]) ]
 	[''Show, ''Eq, ''Ord, ''Ix]
@@ -169,7 +169,7 @@ import Control.Monad.Primitive (PrimMonad(..), unsafeIOToPrim)
 
 #include "foo.h"
 
-struct "Foo" #{size Foo}
+struct "Foo" #{size Foo} #{alignment Foo}
 	[	("x", ''CInt, [| #{peek Foo, x} |], [| #{poke Foo, x} |]),
 		("y", ''CInt, [| #{peek Foo, y} |], [| #{poke Foo, y} |]) ]
 	[''Show, ''Read, ''Eq, ''Ord, ''Bounded]

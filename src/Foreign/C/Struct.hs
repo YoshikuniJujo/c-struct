@@ -5,7 +5,7 @@
 
 module Foreign.C.Struct (
 	-- * STRUCT
-	struct, StrName, StrSize,
+	struct, StrName, StrSize, StrAlgn,
 	MemName, MemType, MemPeek, MemPoke, DerivClass,
 	-- * STRUCT WITH PRIMITIVE MONAD
 	structPrim, FunCopy, FunFree ) where

@@ -6,11 +6,17 @@ module Foreign.C.Struct.Parts (
 	tupleE, tupT, tupP', intE, strP,
 	(.->), pt, (.$), (...), (.<$>), (.<*>), (.>>=),
 	(.&&), (.||), (.==), (.<), (.+), (.*), zp, ss, (..+),
-	toLabel, lcfirst ) where
+	toLabel, lcfirst,
+
+	bigTupleData, bigTupleE, bigTupT, bigTupP,
+	sbTupleE, sbTupT, sbTupP ) where
 
 import Language.Haskell.TH (
 	ExpQ, Exp(TupE), varE, litE, infixE, TypeQ, appT, arrowT, tupleT,
-	PatQ, litP, tupP, Name, integerL, stringL )
+	PatQ, litP, tupP, Name, integerL, stringL,
+	varT, mkName,
+	dataD, cxt, bangType, bang, noSourceUnpackedness, noSourceStrictness,
+	plainTV, normalC, DecQ, conE, conT, conP )
 import Data.Char (toLower, toUpper)
 
 ---------------------------------------------------------------------------
@@ -46,6 +52,36 @@ intE = litE . integerL
 
 strP :: String -> PatQ
 strP = litP . stringL
+
+sbTupleE :: Maybe Name -> Int -> ExpQ
+sbTupleE mnm nb = maybe (tupleE nb) bigTupleE mnm
+
+sbTupT :: Maybe Name -> [TypeQ] -> TypeQ
+sbTupT = maybe tupT bigTupT
+
+sbTupP :: Maybe Name -> [PatQ] -> PatQ
+sbTupP = maybe tupP' bigTupP
+
+bigTupleData :: Name -> Int -> DecQ
+bigTupleData nm nb = dataD (cxt []) nm
+	(plainTV . mkName <$> as)
+	Nothing
+	[normalC nm
+		$ bangType (bang noSourceUnpackedness noSourceStrictness)
+			. varT . mkName <$> as] []
+	where as = take nb abc
+
+abc :: [String]
+abc = ((: []) <$> ['a' .. 'z']) ++ [ as ++ [a] | as <- abc, a <- ['a' .. 'z'] ]
+
+bigTupleE :: Name -> ExpQ
+bigTupleE = conE
+
+bigTupT :: Name -> [TypeQ] -> TypeQ
+bigTupT nm = foldl appT (conT nm)
+
+bigTupP :: Name -> [PatQ] -> PatQ
+bigTupP = conP
 
 -- OPERATOR
 

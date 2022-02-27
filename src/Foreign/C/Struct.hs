@@ -37,7 +37,8 @@ import Text.Read (Lexeme(..), readPrec, step, lexP, parens, prec)
 import Foreign.C.Struct.Parts (
 	(.->), (.$), (...), (.<$>), (.<*>), (.>>=),
 	(.&&), (.||), (.==), (.<), (.+), (.*),
-	tupleE, tupT, tupP', intE, strP, pt, zp, ss, (..+), toLabel, lcfirst )
+	intE, strP, pt, zp, ss, (..+), toLabel, lcfirst,
+	bigTupleData, sbTupP, sbTupT, sbTupleE )
 
 ---------------------------------------------------------------------------
 
@@ -70,15 +71,23 @@ import Foreign.C.Struct.Parts (
 
 struct :: StrName -> StrSize -> StrAlgn ->
 	[(MemName, MemType, MemPeek, MemPoke)] -> [DerivClass] -> DecsQ
-struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = (++)
-	<$> sequence [
-		mkNewtype sn,
-		pure . PragmaD $ CompleteP [mkName sn] Nothing,
-		mkPatternSig sn mts, mkPatternBody sn sz mns mpos,
-		mkPatternFunSig sn mts, mkPatternFunBody sn mpes ]
-	<*> mkInstances sn sz algn mns dcs
-	where dcs = case toDerivCollection dcs_ of
+struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = do
+	mtpl <- if ln > 62 then Just <$> newName "Tuple" else pure Nothing
+	(\mtd dt ist -> maybe id (:) mtd $ dt ++ ist)
+		<$> maybe (pure Nothing)
+			(\tpl -> Just <$> bigTupleData tpl ln) mtpl
+		<*> sequence [
+			mkNewtype sn,
+			pure . PragmaD $ CompleteP [mkName sn] Nothing,
+			mkPatternSig sn mts,
+			mkPatternBody mtpl sn sz mns mpos,
+			mkPatternFunSig mtpl sn mts,
+			mkPatternFunBody mtpl sn mpes ]
+		<*> mkInstances sn sz algn mns dcs
+	where
+	dcs = case toDerivCollection dcs_ of
 		(d, []) -> d; (_, os) -> error $ "Can't derive: " ++ show os
+	ln = length dcs_
 
 -- ^
 -- Example
@@ -111,10 +120,10 @@ mkNewtype sn =
 mkPatternSig :: StrName -> [MemType] -> DecQ
 mkPatternSig (mkName -> sn) = patSynSigD sn . foldr (.->) (conT sn) . (conT <$>)
 
-mkPatternBody :: StrName -> StrSize -> [MemName] -> [MemPoke] -> DecQ
-mkPatternBody sn sz ms_ pos = patSynD (mkName sn) (recordPatSyn ms)
+mkPatternBody :: Maybe Name -> StrName -> StrSize -> [MemName] -> [MemPoke] -> DecQ
+mkPatternBody mtpl sn sz ms_ pos = patSynD (mkName sn) (recordPatSyn ms)
 	(explBidir [mkPatternBodyClause sn sz pos])
-	(viewP (varE . mkName $ lcfirst sn) (tupP' $ varP <$> ms))
+	(viewP (varE . mkName $ lcfirst sn) (sbTupP mtpl $ varP <$> ms))
 	where ms = mkName . toLabel sn <$> ms_
 
 mkPatternBodyClause :: StrName -> StrSize -> [MemPoke] -> ClauseQ
@@ -129,21 +138,21 @@ mkPatternBodyClause (mkName . (++ "_") -> sn) sz pos = do
 
 -- Function Mk Pattern Fun
 
-mkPatternFunSig :: StrName -> [MemType] -> DecQ
-mkPatternFunSig (mkName . lcfirst &&& conT . mkName -> (fn, st)) =
-	sigD fn . (st .->) . tupT . (conT <$>)
+mkPatternFunSig :: Maybe Name -> StrName -> [MemType] -> DecQ
+mkPatternFunSig mtpl (mkName . lcfirst &&& conT . mkName -> (fn, st)) =
+	sigD fn . (st .->) . sbTupT mtpl . (conT <$>)
 
-mkPatternFunBody :: StrName -> [MemPeek] -> DecQ
-mkPatternFunBody (mkName . lcfirst &&& mkName . (++ "_") -> (fn, cn)) pes =
+mkPatternFunBody :: Maybe Name -> StrName -> [MemPeek] -> DecQ
+mkPatternFunBody mtpl (mkName . lcfirst &&& mkName . (++ "_") -> (fn, cn)) pes =
 	funD fn . (: []) $ (,) <$> newName "f" <*> newName "p" >>= \(f, p) ->
 		clause [conP cn [varP f]] (normalB $ varE 'unsafePerformIO
 			.$ varE 'withForeignPtr `appE` varE f
 				`appE` lamE [bool (varP p) wildP $ null pes]
-					(mkPatternFunPeeks p pes)) []
+					(mkPatternFunPeeks mtpl p pes)) []
 
-mkPatternFunPeeks :: Name -> [MemPeek] -> ExpQ
-mkPatternFunPeeks (varE -> p) (length &&& id -> (n, pes)) =
-	foldl (.<*>) (varE 'pure .$ tupleE n) $ (`appE` p) <$> pes
+mkPatternFunPeeks :: Maybe Name -> Name -> [MemPeek] -> ExpQ
+mkPatternFunPeeks mtpl (varE -> p) (length &&& id -> (n, pes)) =
+	foldl (.<*>) (varE 'pure .$ sbTupleE mtpl n) $ (`appE` p) <$> pes
 
 -- DERIVING
 

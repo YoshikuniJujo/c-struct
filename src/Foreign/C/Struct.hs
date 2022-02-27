@@ -87,7 +87,7 @@ struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = do
 	where
 	dcs = case toDerivCollection dcs_ of
 		(d, []) -> d; (_, os) -> error $ "Can't derive: " ++ show os
-	ln = length dcs_
+	ln = length mns
 
 -- ^
 -- Example

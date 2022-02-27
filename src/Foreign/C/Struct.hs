@@ -74,14 +74,14 @@ struct :: StrName -> StrSize -> StrAlgn ->
 	[(MemName, MemType, MemPeek, MemPoke)] -> [DerivClass] -> DecsQ
 struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = do
 	mtpl <- if ln > 62
-		then do	let	tplnm = "Tuple" ++ show ln
-			b <- isJust <$> lookupTypeName tplnm
-			if b	then pure Nothing
-				else Just <$> ((,) <$> newName tplnm <*> newName tplnm)
+		then Just <$> ((,) <$> newName tplnm <*> newName tplnm)
 		else pure Nothing
 	(\mtd dt ist -> maybe id (:) mtd $ dt ++ ist)
-		<$> maybe (pure Nothing)
-			(\(tpl, tpl') -> Just <$> bigTupleData tpl tpl' ln) mtpl
+		<$> do	b <- isJust <$> lookupTypeName tplnm
+			if b
+			then pure Nothing
+			else maybe (pure Nothing)
+				(\(tpl, tpl') -> Just <$> bigTupleData tpl tpl' ln) mtpl
 		<*> sequence [
 			mkNewtype sn,
 			pure . PragmaD $ CompleteP [mkName sn] Nothing,
@@ -94,6 +94,7 @@ struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = do
 	dcs = case toDerivCollection dcs_ of
 		(d, []) -> d; (_, os) -> error $ "Can't derive: " ++ show os
 	ln = length mns
+	tplnm = "Tuple" ++ show ln
 
 -- ^
 -- Example

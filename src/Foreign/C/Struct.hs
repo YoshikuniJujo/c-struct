@@ -20,7 +20,7 @@ import Language.Haskell.TH (
 	forallT, varT, conT, appT, varP, wildP, conP, tupP, viewP,
 	Name, mkName, newName,
 	ClauseQ, clause, normalB, StmtQ, doE, compE, bindS, noBindS,
-	lookupTypeName )
+	lookupTypeName, lookupValueName )
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
 import Foreign.Concurrent (newForeignPtr)
 import Foreign.Marshal (malloc, mallocBytes, free, copyBytes)
@@ -29,7 +29,7 @@ import Control.Arrow ((&&&))
 import Control.Monad (replicateM)
 import Control.Monad.Primitive (PrimMonad(..), RealWorld, unsafeIOToPrim)
 import Data.Bool (bool)
-import Data.Maybe (mapMaybe, isJust)
+import Data.Maybe (mapMaybe, isJust, fromJust)
 import Data.List (unzip4, intersperse, intercalate)
 import Data.Array (Ix(..))
 import System.IO.Unsafe (unsafePerformIO)
@@ -74,7 +74,11 @@ struct :: StrName -> StrSize -> StrAlgn ->
 	[(MemName, MemType, MemPeek, MemPoke)] -> [DerivClass] -> DecsQ
 struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = do
 	mtpl <- if ln > 62
-		then Just <$> ((,) <$> newName tplnm <*> newName tplnm)
+		then do	nm <- lookupTypeName tplnm
+			nm' <- lookupValueName tplnm
+			if isJust nm && isJust nm'
+			then pure $ Just (fromJust nm, fromJust nm')
+			else Just <$> ((,) <$> newName tplnm <*> newName tplnm)
 		else pure Nothing
 	(\mtd dt ist -> maybe id (:) mtd $ dt ++ ist)
 		<$> do	b <- isJust <$> lookupTypeName tplnm

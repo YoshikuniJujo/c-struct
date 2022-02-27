@@ -53,20 +53,20 @@ intE = litE . integerL
 strP :: String -> PatQ
 strP = litP . stringL
 
-sbTupleE :: Maybe Name -> Int -> ExpQ
-sbTupleE mnm nb = maybe (tupleE nb) bigTupleE mnm
+sbTupleE :: Maybe (Name, Name) -> Int -> ExpQ
+sbTupleE mnm nb = maybe (tupleE nb) (\(_, tpl') -> bigTupleE tpl') mnm
 
-sbTupT :: Maybe Name -> [TypeQ] -> TypeQ
-sbTupT = maybe tupT bigTupT
+sbTupT :: Maybe (Name, Name) -> [TypeQ] -> TypeQ
+sbTupT = maybe tupT (\(tpl, _) ->bigTupT tpl)
 
-sbTupP :: Maybe Name -> [PatQ] -> PatQ
-sbTupP = maybe tupP' bigTupP
+sbTupP :: Maybe (Name, Name) -> [PatQ] -> PatQ
+sbTupP = maybe tupP' (\(_, tpl') -> bigTupP tpl')
 
-bigTupleData :: Name -> Int -> DecQ
-bigTupleData nm nb = dataD (cxt []) nm
+bigTupleData :: Name -> Name -> Int -> DecQ
+bigTupleData nm nm' nb = dataD (cxt []) nm
 	(plainTV . mkName <$> as)
 	Nothing
-	[normalC nm
+	[normalC nm'
 		$ bangType (bang noSourceUnpackedness noSourceStrictness)
 			. varT . mkName <$> as] []
 	where as = take nb abc

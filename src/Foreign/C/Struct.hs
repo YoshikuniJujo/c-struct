@@ -72,10 +72,12 @@ import Foreign.C.Struct.Parts (
 struct :: StrName -> StrSize -> StrAlgn ->
 	[(MemName, MemType, MemPeek, MemPoke)] -> [DerivClass] -> DecsQ
 struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = do
-	mtpl <- if ln > 62 then Just <$> newName "Tuple" else pure Nothing
+	mtpl <- if ln > 62
+		then Just <$> ((,) <$> newName "Tuple" <*> newName "Tuple")
+		else pure Nothing
 	(\mtd dt ist -> maybe id (:) mtd $ dt ++ ist)
 		<$> maybe (pure Nothing)
-			(\tpl -> Just <$> bigTupleData tpl ln) mtpl
+			(\(tpl, tpl') -> Just <$> bigTupleData tpl tpl' ln) mtpl
 		<*> sequence [
 			mkNewtype sn,
 			pure . PragmaD $ CompleteP [mkName sn] Nothing,
@@ -120,7 +122,7 @@ mkNewtype sn =
 mkPatternSig :: StrName -> [MemType] -> DecQ
 mkPatternSig (mkName -> sn) = patSynSigD sn . foldr (.->) (conT sn) . (conT <$>)
 
-mkPatternBody :: Maybe Name -> StrName -> StrSize -> [MemName] -> [MemPoke] -> DecQ
+mkPatternBody :: Maybe (Name, Name) -> StrName -> StrSize -> [MemName] -> [MemPoke] -> DecQ
 mkPatternBody mtpl sn sz ms_ pos = patSynD (mkName sn) (recordPatSyn ms)
 	(explBidir [mkPatternBodyClause sn sz pos])
 	(viewP (varE . mkName $ lcfirst sn) (sbTupP mtpl $ varP <$> ms))
@@ -138,11 +140,11 @@ mkPatternBodyClause (mkName . (++ "_") -> sn) sz pos = do
 
 -- Function Mk Pattern Fun
 
-mkPatternFunSig :: Maybe Name -> StrName -> [MemType] -> DecQ
+mkPatternFunSig :: Maybe (Name, Name) -> StrName -> [MemType] -> DecQ
 mkPatternFunSig mtpl (mkName . lcfirst &&& conT . mkName -> (fn, st)) =
 	sigD fn . (st .->) . sbTupT mtpl . (conT <$>)
 
-mkPatternFunBody :: Maybe Name -> StrName -> [MemPeek] -> DecQ
+mkPatternFunBody :: Maybe (Name, Name) -> StrName -> [MemPeek] -> DecQ
 mkPatternFunBody mtpl (mkName . lcfirst &&& mkName . (++ "_") -> (fn, cn)) pes =
 	funD fn . (: []) $ (,) <$> newName "f" <*> newName "p" >>= \(f, p) ->
 		clause [conP cn [varP f]] (normalB $ varE 'unsafePerformIO
@@ -150,7 +152,7 @@ mkPatternFunBody mtpl (mkName . lcfirst &&& mkName . (++ "_") -> (fn, cn)) pes =
 				`appE` lamE [bool (varP p) wildP $ null pes]
 					(mkPatternFunPeeks mtpl p pes)) []
 
-mkPatternFunPeeks :: Maybe Name -> Name -> [MemPeek] -> ExpQ
+mkPatternFunPeeks :: Maybe (Name, Name) -> Name -> [MemPeek] -> ExpQ
 mkPatternFunPeeks mtpl (varE -> p) (length &&& id -> (n, pes)) =
 	foldl (.<*>) (varE 'pure .$ sbTupleE mtpl n) $ (`appE` p) <$> pes
 

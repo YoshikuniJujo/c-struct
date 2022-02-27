@@ -19,7 +19,8 @@ import Language.Haskell.TH (
 	ExpQ, varE, conE, appE, infixE, lamE, tupE, listE, litE, integerL,
 	forallT, varT, conT, appT, varP, wildP, conP, tupP, viewP,
 	Name, mkName, newName,
-	ClauseQ, clause, normalB, StmtQ, doE, compE, bindS, noBindS )
+	ClauseQ, clause, normalB, StmtQ, doE, compE, bindS, noBindS,
+	lookupTypeName )
 import Foreign.ForeignPtr (ForeignPtr, withForeignPtr)
 import Foreign.Concurrent (newForeignPtr)
 import Foreign.Marshal (malloc, mallocBytes, free, copyBytes)
@@ -28,7 +29,7 @@ import Control.Arrow ((&&&))
 import Control.Monad (replicateM)
 import Control.Monad.Primitive (PrimMonad(..), RealWorld, unsafeIOToPrim)
 import Data.Bool (bool)
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, isJust)
 import Data.List (unzip4, intersperse, intercalate)
 import Data.Array (Ix(..))
 import System.IO.Unsafe (unsafePerformIO)
@@ -73,7 +74,10 @@ struct :: StrName -> StrSize -> StrAlgn ->
 	[(MemName, MemType, MemPeek, MemPoke)] -> [DerivClass] -> DecsQ
 struct sn sz algn (unzip4 -> (mns, mts, mpes, mpos)) dcs_ = do
 	mtpl <- if ln > 62
-		then Just <$> ((,) <$> newName "Tuple" <*> newName "Tuple")
+		then do	let	tplnm = "Tuple" ++ show ln
+			b <- isJust <$> lookupTypeName tplnm
+			if b	then pure Nothing
+				else Just <$> ((,) <$> newName tplnm <*> newName tplnm)
 		else pure Nothing
 	(\mtd dt ist -> maybe id (:) mtd $ dt ++ ist)
 		<$> maybe (pure Nothing)

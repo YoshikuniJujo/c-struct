@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.34.4.
+-- This file has been generated from package.yaml by hpack version 0.35.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -29,6 +29,7 @@ library
   exposed-modules:
       Foreign.C.Struct
   other-modules:
+      Foreign.C.Struct.Ord
       Foreign.C.Struct.Parts
       Paths_c_struct
   hs-source-dirs:

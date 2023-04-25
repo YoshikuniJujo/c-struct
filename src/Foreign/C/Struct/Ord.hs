@@ -28,11 +28,11 @@ checkResultFoo' fn = do
 	lamCaseE $ checkResultFooLamCase x xs fn
 	where
 	checkResultFooLamCase x xs fn = [
-		match (conP '[] []) (normalB $ varE 'True) [],
+		match (conP '[] []) (normalB $ conE 'True) [],
 		match (infixP (varP x) '(:) (varP xs)) (normalB $ checkResultFooLamCaseCase x xs fn) [] ]
 	checkResultFooLamCaseCase x xs fn = caseE (varE x) [
-		match (conP 'LT []) (normalB $ varE 'True) [],
-		match (conP 'GT []) (normalB $ varE 'False) [],
+		match (conP 'LT []) (normalB $ conE 'True) [],
+		match (conP 'GT []) (normalB $ conE 'False) [],
 		match (conP 'EQ []) (normalB $ varE fn `appE` varE xs) [] ]
 
 tx, ty, tz, tw :: ExpQ

@@ -27,7 +27,9 @@ dependencies:
 
 library:
   source-dirs: src
-  exposed-modules: Foreign.C.Struct
+  exposed-modules:
+  - Foreign.C.Struct
+  - Foreign.C.Struct.TypeSynonyms
 
 tests:
   c-struct-test:

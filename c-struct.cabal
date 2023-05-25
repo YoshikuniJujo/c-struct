@@ -28,6 +28,7 @@ source-repository head
 library
   exposed-modules:
       Foreign.C.Struct
+      Foreign.C.Struct.TypeSynonyms
   other-modules:
       Foreign.C.Struct.Ord
       Foreign.C.Struct.Parts

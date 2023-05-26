@@ -3,5 +3,6 @@ module Foreign.C.Struct.TypeSynonyms where
 import Foreign.Ptr
 
 type PtrVoid = Ptr ()
+type PtrFloat = Ptr #{type float}
 
-type ListFloat = [Float]
+type ListFloat = [#{type float}]
